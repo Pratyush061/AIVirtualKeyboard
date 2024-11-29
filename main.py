@@ -17,6 +17,7 @@ Use 'a' and 'd' from keyboard to change the background.
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     st.error("Error: Webcam not detected. Please check the connection or refresh and try again.")
+    st.stop() # Stop execution if no webcam is detected.
 cap.set(3, 1280)
 cap.set(4, 720)
 
@@ -39,11 +40,17 @@ class Button:
         cv2.putText(img, self.text, (self.pos[0]+20, self.pos[1]+70),
                     cv2.FONT_HERSHEY_PLAIN, 5, (255, 255, 255), 3)
 
-listImg=os.listdir('street')
-imgList = []
-for imgPath in listImg:
-    image = cv2.imread(f'street/{imgPath}')
-    imgList.append(image)
+listImg = os.listdir('street') if os.path.exists('street') else []
+if not listImg:
+    st.error("Error: 'street' directory is missing or empty. Please add background images.")
+    st.stop()
+else:
+    for imgPath in listImg:
+        image = cv2.imread(f'street/{imgPath}')
+        if image is None:
+            st.error(f"Error: Failed to load image: {imgPath}")
+        else:
+            imgList.append(image)
 
 indexImg=0
 segmentor = SelfiSegmentation()  # Initialize segmentation model
@@ -63,6 +70,12 @@ with col2:
 
 while run:
     success, img = cap.read()
+    if not success:
+       st.error("Error: Failed to capture frame from webcam. Please try refreshing.")
+       st.stop()
+    if img is None:
+       st.error("Error: Captured image is empty. Check the webcam connection.")
+       st.stop()
     imgOut = segmentor.removeBG(img, imgList[indexImg])  # it is default in BGR format
     if not success:
         st.error("Failed to read from webcam.")
