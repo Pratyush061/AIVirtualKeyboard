@@ -13,13 +13,18 @@ st.subheader('''Turn on the webcam and use hand gestures to interact with the vi
 Use 'a' and 'd' from keyboard to change the background.
         ''')
 
-# Initialize webcam
-cap = cv2.VideoCapture(0)
-if not cap.isOpened():
+# Use Streamlit's webcam widget instead of OpenCV
+frame = st.camera_input("Take a picture")
+
+if frame:
+    # Convert the Streamlit image to an OpenCV format
+    img = frame.to_image()
+    img = np.array(img)
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)  # Convert from RGB to BGR
+
+else:
     st.error("Error: Webcam not detected. Please check the connection or refresh and try again.")
-    st.stop() # Stop execution if no webcam is detected.
-cap.set(3, 1280)
-cap.set(4, 720)
+    st.stop()  # Stop execution if no webcam is detected
 
 # Hand detector
 detector = HandDetector(maxHands=1, detectionCon=0.8)
@@ -37,7 +42,7 @@ class Button:
         self.size = size  # Size of button
         self.text = text  # Text displayed on button
         # Draw button text on the keyboard canvas
-        cv2.putText(img, self.text, (self.pos[0]+20, self.pos[1]+70),
+        cv2.putText(img, self.text, (self.pos[0] + 20, self.pos[1] + 70),
                     cv2.FONT_HERSHEY_PLAIN, 5, (255, 255, 255), 3)
 
 listImg = os.listdir('street') if os.path.exists('street') else []
@@ -45,6 +50,7 @@ if not listImg:
     st.error("Error: 'street' directory is missing or empty. Please add background images.")
     st.stop()
 else:
+    imgList = []
     for imgPath in listImg:
         image = cv2.imread(f'street/{imgPath}')
         if image is None:
@@ -52,12 +58,12 @@ else:
         else:
             imgList.append(image)
 
-indexImg=0
+indexImg = 0
 segmentor = SelfiSegmentation()  # Initialize segmentation model
 prev_key_time = [time.time()] * 2  # Initialize time tracker for key press delay for both hands
 
-pressed_key=None
-output_text=""
+pressed_key = None
+output_text = ""
 
 # Streamlit layout
 col1, col2 = st.columns([3, 2])
@@ -69,17 +75,10 @@ with col2:
     output_text_area = st.subheader("")
 
 while run:
-    success, img = cap.read()
-    if not success:
-       st.error("Error: Failed to capture frame from webcam. Please try refreshing.")
-       st.stop()
     if img is None:
-       st.error("Error: Captured image is empty. Check the webcam connection.")
-       st.stop()
+        st.error("Error: Captured image is empty. Check the webcam connection.")
+        st.stop()
     imgOut = segmentor.removeBG(img, imgList[indexImg])  # it is default in BGR format
-    if not success:
-        st.error("Failed to read from webcam.")
-        break
     # Detect hands
     hands, img = detector.findHands(imgOut, flipType=False)
     # Create a blank canvas for drawing the keyboard
@@ -117,7 +116,7 @@ while run:
             distance = np.sqrt((x8 - x4) ** 2 + (y8 - y4) ** 2)
             cv2.putText(img, f"Distance: {distance}", (50, 700), cv2.FONT_HERSHEY_PLAIN, 2, (255, 255, 255), 2)
             cv2.putText(img, f"Ratio: {(distance/np.sqrt((hand_width) ** 2 + (hand_height) ** 2))*100}", (50, 650), cv2.FONT_HERSHEY_PLAIN, 2, (255, 255, 255), 2)
-            click_threshold = 10 # Adjust the threshold for click detection
+            click_threshold = 10  # Adjust the threshold for click detection
 
             # Loop through buttons and check if fingertip is over a button
             for button in buttonList:
@@ -133,8 +132,8 @@ while run:
                     cv2.putText(img, button.text, (button.pos[0] + 20, button.pos[1] + 70),
                                 cv2.FONT_HERSHEY_PLAIN, 5, (255, 255, 255), 3)
                     # Check for click gesture
-                    if (distance/np.sqrt((hand_width) ** 2 + (hand_height) ** 2))*100 < click_threshold:
-                        if time.time() - prev_key_time[i] > 2 :  # Check time delay for key press previously 3.5
+                    if (distance/np.sqrt((hand_width) ** 2 + (hand_height) ** 2)) * 100 < click_threshold:
+                        if time.time() - prev_key_time[i] > 2:  # Check time delay for key press previously 3.5
                             prev_key_time[i] = time.time()  # Update the last key press time for that hand
                             cv2.rectangle(img, button.pos,
                                           [button.pos[0] + button.size[0], button.pos[1] + button.size[1]],
@@ -153,9 +152,8 @@ while run:
     if output_text:
         output_text_area.text(output_text)
 
-
     # Keep the window open and update it for each frame; wait for 1 millisecond between frames
-    key=cv2.waitKey(1)
+    key = cv2.waitKey(1)
 
     if key == ord('a'):
         if indexImg > 0:
@@ -167,9 +165,3 @@ while run:
         break
 
     stacked_img = cv2.addWeighted(img, 0.7, keyboard_canvas, 0.3, 0)
-
-
-
-
-
-
